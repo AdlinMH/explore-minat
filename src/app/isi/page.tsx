@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Brand } from "@/components/brand";
 import { Quiz } from "@/components/quiz/quiz";
 import { listActiveClasses } from "@/server/responses";
+import { logDbError } from "@/server/db";
 
 export const metadata: Metadata = { title: "Isi kuis" };
 
@@ -12,7 +13,8 @@ export default async function IsiPage() {
   let loadError = false;
   try {
     classes = await listActiveClasses();
-  } catch {
+  } catch (err) {
+    logDbError("isi: daftar kelas", err);
     loadError = true;
   }
   return (

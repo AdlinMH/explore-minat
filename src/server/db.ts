@@ -26,3 +26,10 @@ export function getSql(): Sql {
   globalForDb.__emkSql = sql;
   return sql;
 }
+
+/** Catat error database ke log server tanpa membocorkan connection string. */
+export function logDbError(context: string, err: unknown) {
+  const e = err as { code?: string; errno?: string; message?: string };
+  const message = String(e?.message ?? err).replace(/postgres(ql)?:\/\/\S+/gi, "[DATABASE_URL]");
+  console.error(`[db] ${context}: ${e?.code ?? e?.errno ?? "ERROR"} ${message}`);
+}
