@@ -1,10 +1,12 @@
 import { z } from "zod";
 import {
+  CATEGORY_IDS,
   EXPLORATION_STATUS_IDS,
   NAME_MAX,
   NAME_MIN,
   OTHER_INTEREST_MAX,
   REFLECTION_MAX,
+  type CategoryId,
 } from "@/config/questionnaire";
 
 /** Menghapus karakter kontrol dan merapikan spasi. */
@@ -48,6 +50,7 @@ export const submissionSchema = z.object({
   explorationStatus: z.enum(EXPLORATION_STATUS_IDS, { error: "Pilih status eksplorasi." }),
   otherInterest: optionalText(OTHER_INTEREST_MAX, "Bidang lainnya"),
   reflection: optionalText(REFLECTION_MAX, "Aktivitas dan alasan"),
+  tieBreak: z.enum(CATEGORY_IDS as [CategoryId, ...CategoryId[]]).nullish(),
 });
 
 export type SubmissionInput = z.input<typeof submissionSchema>;

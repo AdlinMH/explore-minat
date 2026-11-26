@@ -38,7 +38,7 @@ export async function saveResponse(input: Submission, clientKey: string): Promis
   ]);
   if (!allowed) return { ok: false, reason: "limited" };
 
-  const result = computeScores(answers);
+  const result = computeScores(answers, input.tieBreak ?? null);
   const rows = await sql<{ id: string }[]>`
     insert into public.responses (
       submission_key, owner_token_hash, name, class_id, questionnaire_version, answers, scores,

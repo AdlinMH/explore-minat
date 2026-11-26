@@ -12,8 +12,11 @@ import {
   REFLECTION_MAX,
   SCALE,
   STEPS,
+  CATEGORY_BY_ID,
+  type CategoryId,
   type ExplorationStatusId,
 } from "@/config/questionnaire";
+import { computeScores } from "@/lib/scoring";
 import { submitResponse } from "@/app/actions/submit";
 import { cn } from "@/lib/utils";
 
@@ -26,6 +29,18 @@ interface Draft {
   otherInterest: string;
   reflection: string;
   consent: boolean;
+  /** Pilihan siswa jika beberapa bidang seri di skor tertinggi. */
+  tieBreak?: CategoryId | "";
+}
+
+/** Bidang yang seri di skor tertinggi; kosong jika jawaban belum lengkap atau tidak seri. */
+function tiedTopFields(answers: Record<string, number>): CategoryId[] {
+  try {
+    const r = computeScores(answers);
+    return r.pattern === "normal" && r.tiedHighest.length > 1 ? r.tiedHighest : [];
+  } catch {
+    return [];
+  }
 }
 
 const DRAFT_KEY = "emk_draft_v1";
@@ -101,6 +116,8 @@ export function Quiz({ classes }: { classes: { id: string; label: string }[] }) 
   }
 
   const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
+  const tied = tiedTopFields(draft.answers);
+  const tieBreak = draft.tieBreak && tied.includes(draft.tieBreak) ? draft.tieBreak : "";
   const setAnswer = (id: string, v: number) => {
     update({ answers: { ...draft.answers, [id]: v } });
     setErrors((e) => {
@@ -121,6 +138,7 @@ export function Quiz({ classes }: { classes: { id: string; label: string }[] }) 
     } else if (s >= 1 && s <= 4) {
       for (const q of STEPS[s - 1]) if (!draft!.answers[q.id]) e[q.id] = "Pilih salah satu jawaban.";
     } else if (s === 5) {
+      if (tied.length > 1 && !tieBreak) e.tieBreak = "Pilih satu bidang.";
       if (!draft!.explorationStatus) e.explorationStatus = "Pilih salah satu.";
       if (draft!.otherInterest.length > OTHER_INTEREST_MAX) e.otherInterest = `Maksimal ${OTHER_INTEREST_MAX} karakter.`;
       if (draft!.reflection.length > REFLECTION_MAX) e.reflection = `Maksimal ${REFLECTION_MAX} karakter.`;
@@ -172,6 +190,7 @@ export function Quiz({ classes }: { classes: { id: string; label: string }[] }) 
           explorationStatus: draft!.explorationStatus,
           otherInterest: draft!.otherInterest,
           reflection: draft!.reflection,
+          tieBreak: tied.length > 1 ? tieBreak : null,
         });
         if (res.ok) {
           setDone(true);
@@ -224,7 +243,7 @@ export function Quiz({ classes }: { classes: { id: string; label: string }[] }) 
         {step >= 1 && step <= 4 && (
           <QuestionStep stepIndex={step - 1} answers={draft.answers} errors={errors} onAnswer={setAnswer} />
         )}
-        {step === 5 && <ExtraStep draft={draft} errors={errors} update={update} />}
+        {step === 5 && <ExtraStep draft={draft} errors={errors} update={update} tied={tied} tieBreak={tieBreak} />}
       </div>
 
       {submitError && (
@@ -402,9 +421,49 @@ function QuestionStep({
   );
 }
 
-function ExtraStep({ draft, errors, update }: { draft: Draft; errors: Record<string, string>; update: (p: Partial<Draft>) => void }) {
+function ExtraStep({
+  draft,
+  errors,
+  update,
+  tied,
+  tieBreak,
+}: {
+  draft: Draft;
+  errors: Record<string, string>;
+  update: (p: Partial<Draft>) => void;
+  tied: CategoryId[];
+  tieBreak: CategoryId | "";
+}) {
   return (
     <div className="grid gap-6">
+      {tied.length > 1 && (
+        <fieldset data-field="tieBreak" className={cn("rounded-2xl border-2 bg-card p-4 sm:p-5", errors.tieBreak ? "border-destructive" : "border-primary/40")}
+          aria-describedby={errors.tieBreak ? "tiebreak-error" : "tiebreak-hint"}>
+          <legend className="px-1 text-base font-semibold">
+            Skormu sama tinggi di {tied.length} bidang. Mana yang paling ingin kamu coba lebih dulu? <span className="font-normal text-muted-foreground">(wajib)</span>
+          </legend>
+          <p id="tiebreak-hint" className="mt-1 text-sm text-muted-foreground">Pilih yang paling bikin kamu penasaran. Bidang lain tetap ditampilkan di hasil.</p>
+          <div className="mt-3 grid gap-2">
+            {tied.map((id) => {
+              const c = CATEGORY_BY_ID[id];
+              const checked = tieBreak === id;
+              return (
+                <label key={id} className={cn(
+                  "flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-2.5 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring",
+                  checked ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+                )}>
+                  <input type="radio" name="tieBreak" value={id} checked={checked} onChange={() => update({ tieBreak: id })} className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" />
+                  <span>
+                    <span className="block text-base font-medium">{c.label}</span>
+                    <span className="block text-sm text-muted-foreground">{c.description}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <FieldError id="tiebreak-error" message={errors.tieBreak} />
+        </fieldset>
+      )}
       <fieldset data-field="explorationStatus" className={cn("rounded-2xl border bg-card p-4 sm:p-5", errors.explorationStatus && "border-destructive")}
         aria-describedby={errors.explorationStatus ? "status-error" : undefined}>
         <legend className="px-1 text-base font-semibold">Seberapa jauh kamu sudah memikirkan bidang kerja? <span className="font-normal text-muted-foreground">(wajib)</span></legend>

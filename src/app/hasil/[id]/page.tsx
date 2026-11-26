@@ -5,7 +5,7 @@ import { Brand } from "@/components/brand";
 import { CategoryIcon } from "@/components/category-icon";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { CATEGORY_BY_ID, EXPLORATION_LABEL, RESULT_DISCLAIMER, type CategoryId } from "@/config/questionnaire";
-import { formatScore, roundOne, scoresFromRecord, sortByScore } from "@/lib/scoring";
+import { FLAT_SPREAD_MAX, formatScore, roundOne, scoresFromRecord, sortByScore } from "@/lib/scoring";
 import { getOwnedResponse } from "@/server/responses";
 import { readOwnerKey } from "@/server/owner-cookie";
 import { categoryReasons } from "@/lib/reasons";
@@ -56,6 +56,8 @@ export default async function HasilPage({ params }: PageProps<"/hasil/[id]">) {
         : row.result_pattern === "all_equal"
           ? "Skormu sama di semua bidang, jadi minatmu belum membedakan bidang tertentu."
           : null;
+  const raws = cats.map((c) => c.raw);
+  const isFlat = row.result_pattern === "normal" && Math.max(...raws) - Math.min(...raws) <= FLAT_SPREAD_MAX;
 
   return (
     <Shell>
@@ -83,6 +85,11 @@ export default async function HasilPage({ params }: PageProps<"/hasil/[id]">) {
           {topGroup.length > 0 ? "Bidang yang paling menarik untukmu saat ini" : "Bidang yang menarik untukmu"}
         </h2>
         {patternNote && <p className="mt-2 rounded-xl border bg-card p-4">{patternNote}</p>}
+        {isFlat && (
+          <p className="mt-2 rounded-xl border bg-card p-4">
+            Skormu hampir sama di semua bidang, jadi bidang di bawah ini hanya sedikit lebih tinggi dari yang lain. Coba beberapa kegiatan dulu sebelum menentukan pilihan.
+          </p>
+        )}
         {mainIds.length > 0 && (
           <div className="mt-4 grid gap-4">
             {mainIds.map((cid) => <CategoryCard key={cid} id={cid} intensity={intensityOf(cid)} answers={row.answers} />)}

@@ -3,7 +3,7 @@
  * pertanyaan, mapping kategori, atau aturan skor berubah agar respons lama
  * tetap dapat ditafsirkan dengan versi yang tersimpan.
  */
-export const QUESTIONNAIRE_VERSION = "2026-11-v1";
+export const QUESTIONNAIRE_VERSION = "2026-11-v2";
 
 export const SCALE = [
   { value: 1, label: "Tidak tertarik" },
@@ -60,29 +60,29 @@ export interface Category {
 }
 
 const QUESTION_TEXTS: string[] = [
-  "Membuat poster, logo, atau tampilan visual yang menarik.",
+  "Membuat poster atau logo dengan memilih warna, huruf, dan gambar yang cocok.",
   "Membuat halaman website yang bisa diklik dan digunakan orang lain.",
   "Membuat aplikasi di HP untuk membantu kegiatan sehari-hari.",
   "Menciptakan aturan, tantangan, atau cerita untuk sebuah game.",
-  "Mencoba menggunakan AI untuk membantu menyelesaikan suatu pekerjaan.",
+  "Membuat grafik dari kumpulan data supaya informasinya mudah dibaca.",
   "Mencoba berbagai fitur aplikasi untuk menemukan bagian yang tidak berjalan dengan benar.",
-  "Membuat video, foto, atau tulisan tentang sesuatu yang kamu sukai.",
+  "Merekam video pendek, lalu memotong dan menyusunnya agar enak ditonton.",
   "Memikirkan cara agar orang tertarik pada suatu produk atau kegiatan.",
-  "Menata warna, tulisan, dan tombol agar sebuah aplikasi nyaman digunakan.",
+  "Merancang tampilan layar aplikasi agar tombol dan menunya mudah dipakai.",
   "Membuat sistem website untuk menyimpan dan mengelola informasi, seperti pendaftaran atau peminjaman buku.",
   "Merancang fitur aplikasi HP, seperti pengingat tugas atau pencatat pengeluaran.",
   "Membuat karakter atau lingkungan yang bisa digunakan dalam game.",
   "Mencari pola dari kumpulan informasi, misalnya hasil survei atau penjualan.",
   "Menelusuri langkah yang menyebabkan aplikasi mengalami masalah.",
-  "Menyunting video, foto, atau tulisan agar ceritanya lebih menarik dan mudah dipahami.",
+  "Menambahkan musik, teks bergerak, dan efek transisi pada sebuah video.",
   "Menjelaskan manfaat suatu produk dan menjawab pertanyaan orang yang tertarik membelinya.",
-  "Membuat animasi atau objek tiga dimensi dari ide yang kamu bayangkan.",
+  "Menggambar ilustrasi atau ikon digital dengan aplikasi desain.",
   "Mencari penyebab suatu fitur website tidak berfungsi, lalu memperbaiki kodenya.",
-  "Mencoba aplikasi buatanmu di HP dan memperbaikinya agar nyaman digunakan.",
+  "Membuat aplikasi HP yang memakai kamera, lokasi (GPS), atau notifikasi.",
   "Mengatur gerakan karakter, skor, atau respons tombol dalam sebuah game.",
   "Membuat fitur yang menggunakan AI, misalnya untuk menjawab pertanyaan atau mengenali gambar.",
   "Menyusun daftar pemeriksaan agar semua fitur aplikasi bisa diuji secara teratur.",
-  "Mencari ide konten dan menentukan cara menyampaikannya kepada penonton atau pembaca.",
+  "Mencari ide dan menulis naskah singkat untuk video atau konten media sosial.",
   "Mencoba berbagai cara promosi dan melihat cara mana yang paling menarik perhatian orang.",
 ];
 
@@ -92,14 +92,13 @@ export const CATEGORIES: Category[] = [
     label: "Desain",
     shortLabel: "Desain",
     description:
-      "Membuat tampilan visual untuk menyampaikan ide atau membantu orang menggunakan suatu produk.",
+      "Membuat gambar, poster, ikon, dan tampilan aplikasi untuk menyampaikan ide atau memudahkan orang memakai suatu produk.",
     color: "#c026d3",
     questionNumbers: [1, 9, 17],
     professions: [
       { id: "desainer_grafis", name: "Desainer grafis", description: "Membuat poster, logo, dan materi visual untuk menyampaikan pesan." },
       { id: "ui_ux_designer", name: "UI/UX designer", description: "Merancang tampilan dan alur aplikasi agar mudah dan nyaman dipakai." },
-      { id: "animator", name: "Animator", description: "Menghidupkan gambar atau karakter menjadi gerakan." },
-      { id: "artist_3d", name: "3D artist", description: "Membuat objek, karakter, atau ruang dalam bentuk tiga dimensi." },
+      { id: "ilustrator", name: "Ilustrator digital", description: "Menggambar ilustrasi dan ikon untuk buku, aplikasi, atau media sosial." },
     ],
     tryActivity: "Buat ulang tampilan satu halaman aplikasi favoritmu di kertas atau Figma, lalu minta teman mencobanya.",
   },
@@ -144,6 +143,7 @@ export const CATEGORIES: Category[] = [
       { id: "game_programmer", name: "Game programmer", description: "Menulis kode agar aturan dan gerakan dalam game berjalan." },
       { id: "game_designer", name: "Game designer", description: "Merancang aturan, tantangan, dan alur permainan." },
       { id: "game_artist", name: "Game artist", description: "Membuat karakter, latar, dan aset visual untuk game." },
+      { id: "artist_3d", name: "3D artist", description: "Membuat objek, karakter, atau ruang dalam bentuk tiga dimensi." },
     ],
     tryActivity: "Rancang aturan game sederhana di kertas, lalu mainkan bersama teman untuk melihat bagian yang seru.",
   },
@@ -178,17 +178,17 @@ export const CATEGORIES: Category[] = [
   },
   {
     id: "konten",
-    label: "Content Creator",
-    shortLabel: "Konten",
+    label: "Video dan Konten Kreatif",
+    shortLabel: "Video & Konten",
     description:
-      "Membuat video, foto, atau tulisan untuk memberi informasi, menghibur, atau berbagi cerita.",
+      "Merekam, menyunting, dan menyusun video atau konten media sosial untuk memberi informasi, menghibur, atau berbagi cerita.",
     color: "#e11d48",
     questionNumbers: [7, 15, 23],
     professions: [
-      { id: "content_creator", name: "Content creator", description: "Membuat dan membagikan konten untuk penonton atau pembaca." },
-      { id: "video_editor", name: "Video editor", description: "Menyunting rekaman menjadi video yang enak ditonton." },
-      { id: "fotografer", name: "Fotografer", description: "Mengambil dan mengolah foto untuk bercerita atau promosi." },
-      { id: "content_writer", name: "Content writer", description: "Menulis artikel, caption, atau naskah yang mudah dipahami." },
+      { id: "video_editor", name: "Video editor", description: "Memotong dan menyusun rekaman menjadi video yang enak ditonton." },
+      { id: "motion_graphic_designer", name: "Motion graphic designer", description: "Membuat teks, logo, dan gambar bergerak untuk video." },
+      { id: "content_creator", name: "Content creator", description: "Merencanakan, membuat, dan membagikan konten untuk penonton." },
+      { id: "scriptwriter", name: "Penulis naskah konten", description: "Menulis ide cerita dan naskah untuk video atau media sosial." },
     ],
     tryActivity: "Buat satu video pendek 30 detik tentang hal yang kamu sukai, lalu minta pendapat satu teman.",
   },
@@ -205,7 +205,7 @@ export const CATEGORIES: Category[] = [
       { id: "social_media_specialist", name: "Social media specialist", description: "Mengelola akun media sosial agar menarik dan aktif." },
       { id: "sales_representative", name: "Sales representative", description: "Menjelaskan produk dan membantu calon pelanggan memutuskan membeli." },
     ],
-    tryActivity: "Buat dua versi poster promosi untuk acara kelas, lalu tanyakan teman mana yang lebih menarik dan kenapa.",
+    tryActivity: "Tulis dua versi kalimat promosi untuk acara kelas, lalu tanyakan teman mana yang lebih menarik dan kenapa.",
   },
 ];
 

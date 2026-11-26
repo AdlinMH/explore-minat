@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
+import { QUESTIONNAIRE_VERSION } from "@/config/questionnaire";
 import { hasDb, resetDb, adminSql } from "./setup";
 import { getOwnedResponse, saveResponse, listActiveClasses } from "@/server/responses";
 import { submissionSchema } from "@/lib/validation";
@@ -24,7 +25,19 @@ describe.skipIf(!hasDb)("penyimpanan respons", () => {
     expect(row.scores.game).toBe(15);
     expect(row.highest_category_ids).toEqual(["game"]);
     expect(row.result_pattern).toBe("normal");
-    expect(row.questionnaire_version).toBe("2026-11-v1");
+    expect(row.questionnaire_version).toBe(QUESTIONNAIRE_VERSION);
+  });
+
+  it("pilihan penentu disimpan sebagai minat tertinggi; pilihan tidak sah diabaikan", async () => {
+    const sql = adminSql();
+    const tied = answersByCategory({ desain: 5, konten: 5 }, 2);
+    expect((await saveResponse(input({ answers: tied, tieBreak: "konten" }), "k1")).ok).toBe(true);
+    expect((await saveResponse(input({ answers: tied, tieBreak: "qa" }), "k2")).ok).toBe(true);
+    const rows = await sql`select highest_category_ids, top_category_ids from responses order by created_at`;
+    await sql.end();
+    expect(rows[0].highest_category_ids).toEqual(["konten"]);
+    expect(rows[0].top_category_ids[0]).toBe("konten");
+    expect(rows[1].highest_category_ids).toEqual(["desain", "konten"]);
   });
 
   it("double click / retry dengan submission_key sama tidak membuat respons ganda", async () => {

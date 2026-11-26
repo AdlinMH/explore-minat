@@ -62,13 +62,22 @@ describe("pola khusus", () => {
 });
 
 describe("peringkat dan seri", () => {
-  it("top 3 tanpa seri", () => {
+  it("hanya bidang di atas rata-rata siswa sendiri yang masuk peringkat", () => {
     const r = computeScores(answersByCategory({ game: 5, website: 4, qa: 2 }, 3));
-    // game 15, website 12, lainnya 9 (6 kategori seri di peringkat 3) → semua seri ikut
-    expect(r.topGroup.slice(0, 2)).toEqual(["game", "website"]);
-    expect(r.topGroup).toHaveLength(2 + 5);
-    expect(r.topGroup).not.toContain("qa");
+    // game 15, website 12, qa 6, lainnya 9; rata-rata 9,75 → bidang bernilai 9 tidak dianggap menonjol
+    expect(r.average).toBeCloseTo(9.75);
+    expect(r.topGroup).toEqual(["game", "website"]);
     expect(r.highest).toEqual(["game"]);
+    expect(r.tiedHighest).toEqual(["game"]);
+    expect(r.spread).toBe(9);
+  });
+  it("profil merata: selisih kecil tetap normal, spread tercatat", () => {
+    const a = { ...uniformAnswers(4), q07: 5 }; // video 13, lainnya 12
+    const r = computeScores(a);
+    expect(r.pattern).toBe("normal");
+    expect(r.highest).toEqual(["konten"]);
+    expect(r.topGroup).toEqual(["konten"]);
+    expect(r.spread).toBe(1);
   });
   it("seri di batas peringkat 3 menyertakan seluruh kategori seri", () => {
     const r = computeScores(answersByCategory({ desain: 5, website: 5, mobile: 4, game: 4, ai_data: 4 }, 1));
@@ -79,6 +88,23 @@ describe("peringkat dan seri", () => {
     const r = computeScores(answersByCategory({ desain: 5, qa: 5, konten: 5, marketing: 5 }, 2));
     expect(r.topGroup.sort()).toEqual(["desain", "konten", "marketing", "qa"]);
     expect(r.highest).toHaveLength(4);
+  });
+  it("pertanyaan penentu memilih satu bidang dari yang seri tertinggi", () => {
+    const a = answersByCategory({ desain: 5, konten: 5, marketing: 4 }, 2);
+    const tanpa = computeScores(a);
+    expect(tanpa.highest).toEqual(["desain", "konten"]);
+    const dengan = computeScores(a, "konten");
+    expect(dengan.highest).toEqual(["konten"]);
+    expect(dengan.tiedHighest).toEqual(["desain", "konten"]);
+    expect(dengan.topGroup[0]).toBe("konten");
+    expect(dengan.topGroup).toContain("desain");
+    expect(dengan.categories).toEqual(tanpa.categories); // skor tidak berubah
+  });
+  it("pilihan penentu di luar bidang yang seri diabaikan", () => {
+    const a = answersByCategory({ desain: 5, konten: 5 }, 2);
+    expect(computeScores(a, "qa").highest).toEqual(["desain", "konten"]);
+    const satu = answersByCategory({ game: 5 }, 2);
+    expect(computeScores(satu, "website").highest).toEqual(["game"]);
   });
   it("hasil tidak bergantung pada urutan kunci input", () => {
     const a = answersByCategory({ mobile: 5, ai_data: 4 }, 2);
