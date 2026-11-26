@@ -17,6 +17,7 @@ import {
   type ExplorationStatusId,
 } from "@/config/questionnaire";
 import { computeScores } from "@/lib/scoring";
+import { mentionedCategories } from "@/lib/other-interest";
 import { submitResponse } from "@/app/actions/submit";
 import { cn } from "@/lib/utils";
 
@@ -34,9 +35,9 @@ interface Draft {
 }
 
 /** Bidang yang seri di skor tertinggi; kosong jika jawaban belum lengkap atau tidak seri. */
-function tiedTopFields(answers: Record<string, number>): CategoryId[] {
+function tiedTopFields(answers: Record<string, number>, otherInterest: string): CategoryId[] {
   try {
-    const r = computeScores(answers);
+    const r = computeScores(answers, null, mentionedCategories(otherInterest));
     return r.pattern === "normal" && r.tiedHighest.length > 1 ? r.tiedHighest : [];
   } catch {
     return [];
@@ -116,7 +117,7 @@ export function Quiz({ classes }: { classes: { id: string; label: string }[] }) 
   }
 
   const update = (patch: Partial<Draft>) => setDraft((d) => (d ? { ...d, ...patch } : d));
-  const tied = tiedTopFields(draft.answers);
+  const tied = tiedTopFields(draft.answers, draft.otherInterest);
   const tieBreak = draft.tieBreak && tied.includes(draft.tieBreak) ? draft.tieBreak : "";
   const setAnswer = (id: string, v: number) => {
     update({ answers: { ...draft.answers, [id]: v } });
@@ -436,34 +437,6 @@ function ExtraStep({
 }) {
   return (
     <div className="grid gap-6">
-      {tied.length > 1 && (
-        <fieldset data-field="tieBreak" className={cn("rounded-2xl border-2 bg-card p-4 sm:p-5", errors.tieBreak ? "border-destructive" : "border-primary/40")}
-          aria-describedby={errors.tieBreak ? "tiebreak-error" : "tiebreak-hint"}>
-          <legend className="px-1 text-base font-semibold">
-            Skormu sama tinggi di {tied.length} bidang. Mana yang paling ingin kamu coba lebih dulu? <span className="font-normal text-muted-foreground">(wajib)</span>
-          </legend>
-          <p id="tiebreak-hint" className="mt-1 text-sm text-muted-foreground">Pilih yang paling bikin kamu penasaran. Bidang lain tetap ditampilkan di hasil.</p>
-          <div className="mt-3 grid gap-2">
-            {tied.map((id) => {
-              const c = CATEGORY_BY_ID[id];
-              const checked = tieBreak === id;
-              return (
-                <label key={id} className={cn(
-                  "flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-2.5 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring",
-                  checked ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
-                )}>
-                  <input type="radio" name="tieBreak" value={id} checked={checked} onChange={() => update({ tieBreak: id })} className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" />
-                  <span>
-                    <span className="block text-base font-medium">{c.label}</span>
-                    <span className="block text-sm text-muted-foreground">{c.description}</span>
-                  </span>
-                </label>
-              );
-            })}
-          </div>
-          <FieldError id="tiebreak-error" message={errors.tieBreak} />
-        </fieldset>
-      )}
       <fieldset data-field="explorationStatus" className={cn("rounded-2xl border bg-card p-4 sm:p-5", errors.explorationStatus && "border-destructive")}
         aria-describedby={errors.explorationStatus ? "status-error" : undefined}>
         <legend className="px-1 text-base font-semibold">Seberapa jauh kamu sudah memikirkan bidang kerja? <span className="font-normal text-muted-foreground">(wajib)</span></legend>
@@ -492,9 +465,41 @@ function ExtraStep({
           onChange={(e) => update({ otherInterest: e.target.value })}
           aria-describedby="lainnya-hint"
           className="mt-2 block w-full rounded-xl border border-input bg-card px-4 py-3 text-base" />
-        <p id="lainnya-hint" className="mt-1 text-right text-sm text-muted-foreground">{draft.otherInterest.length}/{OTHER_INTEREST_MAX}</p>
+        <p id="lainnya-hint" className="mt-1 flex justify-between gap-3 text-sm text-muted-foreground">
+          <span>Contoh: edit video, desain logo, pastry, robotik.</span>
+          <span className="shrink-0">{draft.otherInterest.length}/{OTHER_INTEREST_MAX}</span>
+        </p>
         <FieldError id="lainnya-error" message={errors.otherInterest} />
       </div>
+
+      {tied.length > 1 && (
+        <fieldset data-field="tieBreak" className={cn("rounded-2xl border-2 bg-card p-4 sm:p-5", errors.tieBreak ? "border-destructive" : "border-primary/40")}
+          aria-describedby={errors.tieBreak ? "tiebreak-error" : "tiebreak-hint"}>
+          <legend className="px-1 text-base font-semibold">
+            Skormu sama tinggi di {tied.length} bidang. Mana yang paling ingin kamu coba lebih dulu? <span className="font-normal text-muted-foreground">(wajib)</span>
+          </legend>
+          <p id="tiebreak-hint" className="mt-1 text-sm text-muted-foreground">Pilih yang paling bikin kamu penasaran. Bidang lain tetap ditampilkan di hasil.</p>
+          <div className="mt-3 grid gap-2">
+            {tied.map((id) => {
+              const c = CATEGORY_BY_ID[id];
+              const checked = tieBreak === id;
+              return (
+                <label key={id} className={cn(
+                  "flex min-h-12 cursor-pointer items-start gap-3 rounded-xl border-2 px-4 py-2.5 has-[:focus-visible]:ring-3 has-[:focus-visible]:ring-ring",
+                  checked ? "border-primary bg-primary/10" : "border-border hover:border-primary/50",
+                )}>
+                  <input type="radio" name="tieBreak" value={id} checked={checked} onChange={() => update({ tieBreak: id })} className="mt-0.5 size-5 shrink-0 accent-[var(--primary)]" />
+                  <span>
+                    <span className="block text-base font-medium">{c.label}</span>
+                    <span className="block text-sm text-muted-foreground">{c.description}</span>
+                  </span>
+                </label>
+              );
+            })}
+          </div>
+          <FieldError id="tiebreak-error" message={errors.tieBreak} />
+        </fieldset>
+      )}
 
       <div data-field="reflection">
         <label htmlFor="refleksi" className="block text-base font-semibold">

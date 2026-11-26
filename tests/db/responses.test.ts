@@ -40,6 +40,16 @@ describe.skipIf(!hasDb)("penyimpanan respons", () => {
     expect(rows[1].highest_category_ids).toEqual(["desain", "konten"]);
   });
 
+  it("seri dipecah otomatis dari minat lainnya saat disimpan", async () => {
+    const sql = adminSql();
+    const tied = answersByCategory({ desain: 5, konten: 5 }, 2);
+    expect((await saveResponse(input({ answers: tied, otherInterest: "Ingin jadi video editor" }), "k1")).ok).toBe(true);
+    const [row] = await sql`select highest_category_ids, top_category_ids from responses`;
+    await sql.end();
+    expect(row.highest_category_ids).toEqual(["konten"]);
+    expect(row.top_category_ids).toEqual(["konten", "desain"]);
+  });
+
   it("double click / retry dengan submission_key sama tidak membuat respons ganda", async () => {
     const i = input();
     const results = await Promise.all([saveResponse(i, "k"), saveResponse(i, "k"), saveResponse(i, "k")]);
@@ -98,7 +108,7 @@ describe.skipIf(!hasDb)("penyimpanan respons", () => {
   it("role anon dan authenticated ditolak membaca/menulis tabel sensitif", async () => {
     const sql = adminSql();
     for (const role of ["anon", "authenticated"]) {
-      for (const t of ["responses", "admin_sessions", "rate_limits", "result_explanations", "classes"]) {
+      for (const t of ["responses", "admin_sessions", "rate_limits", "classes"]) {
         await expect(sql.begin(async (tx) => {
           await tx.unsafe(`set local role ${role}`);
           await tx.unsafe(`select * from public.${t} limit 1`);
@@ -109,7 +119,7 @@ describe.skipIf(!hasDb)("penyimpanan respons", () => {
         await tx.unsafe(`insert into public.rate_limits (bucket, window_start) values ('x', now())`);
       })).rejects.toThrow(/permission denied/);
     }
-    const rls = await sql`select relname, relrowsecurity from pg_class where relname in ('classes','responses','admin_sessions','rate_limits','result_explanations')`;
+    const rls = await sql`select relname, relrowsecurity from pg_class where relname in ('classes','responses','admin_sessions','rate_limits')`;
     await sql.end();
     expect(rls.every((r) => r.relrowsecurity)).toBe(true);
   });

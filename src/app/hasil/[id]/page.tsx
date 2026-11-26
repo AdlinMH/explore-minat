@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { ChevronDown, Compass, Lightbulb, MessageSquareText, Search } from "lucide-react";
+import { ChevronDown, Compass, Info, Lightbulb, MessageSquareText, Search } from "lucide-react";
 import { Brand } from "@/components/brand";
 import { CategoryIcon } from "@/components/category-icon";
 import { HBarChart } from "@/components/charts/hbar-chart";
 import { CATEGORY_BY_ID, EXPLORATION_LABEL, RESULT_DISCLAIMER, type CategoryId } from "@/config/questionnaire";
-import { FLAT_SPREAD_MAX, formatScore, roundOne, scoresFromRecord, sortByScore } from "@/lib/scoring";
+import { FLAT_SPREAD_MAX, computeScores, formatScore, roundOne, scoresFromRecord, sortByScore, type AutoTieBreak } from "@/lib/scoring";
+import { matchOtherInterest, mentionedCategories, type OtherInterestMatch } from "@/lib/other-interest";
 import { getOwnedResponse } from "@/server/responses";
 import { readOwnerKey } from "@/server/owner-cookie";
 import { categoryReasons } from "@/lib/reasons";
@@ -33,8 +34,10 @@ export default async function HasilPage({ params }: PageProps<"/hasil/[id]">) {
   }
 
   const cats = scoresFromRecord(row.scores);
-  const sorted = sortByScore(cats);
   const topGroup = row.top_category_ids as CategoryId[];
+  // Urutan sama dengan hasil (bidang yang menang seri tampil lebih dulu), sisanya menurut skor.
+  const rankOf = (cid: CategoryId) => (topGroup.includes(cid) ? topGroup.indexOf(cid) : topGroup.length);
+  const sorted = sortByScore(cats).sort((a, b) => b.raw - a.raw || rankOf(a.id) - rankOf(b.id));
   const intensityOf = (cid: CategoryId) => cats.find((x) => x.id === cid)!.intensity;
   // Bidang dengan skor tertinggi tampil terbuka (lebih dari satu hanya jika seri);
   // peringkat 2–3 (termasuk yang seri) disembunyikan dalam collapsible.
@@ -59,6 +62,19 @@ export default async function HasilPage({ params }: PageProps<"/hasil/[id]">) {
   const raws = cats.map((c) => c.raw);
   const isFlat = row.result_pattern === "normal" && Math.max(...raws) - Math.min(...raws) <= FLAT_SPREAD_MAX;
 
+  // Penjelasan pemecah seri otomatis (dihitung ulang dari jawaban, tanpa pilihan siswa).
+  let tieNote: string | null = null;
+  try {
+    const re = computeScores(row.answers, null, mentionedCategories(row.other_interest));
+    if (re.autoTieBreak && re.tiedHighest.length === 1 && mainIds.length === 1 && re.tiedHighest[0] === mainIds[0]) {
+      const others = re.tiedByScore.filter((cid) => cid !== mainIds[0]).map((cid) => CATEGORY_BY_ID[cid].label);
+      tieNote = tieBreakNote(CATEGORY_BY_ID[mainIds[0]].label, others, re.autoTieBreak);
+    }
+  } catch {
+    tieNote = null;
+  }
+  const interest = matchOtherInterest(row.other_interest);
+
   return (
     <Shell>
       <div className="emk-rise">
@@ -72,7 +88,7 @@ export default async function HasilPage({ params }: PageProps<"/hasil/[id]">) {
           <Compass className="size-4 text-primary" aria-hidden="true" />
           Status: <strong className="font-semibold">{EXPLORATION_LABEL[row.exploration_status]}</strong>
         </span>
-        {row.other_interest && (
+        {row.other_interest && interest.groups.length === 0 && (
           <span className="inline-flex max-w-full items-start gap-1.5 rounded-2xl border bg-card px-3 py-1.5 text-sm">
             <MessageSquareText className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
             <span className="min-w-0 break-words">Minat lainnya: <strong className="font-semibold">{row.other_interest}</strong></span>
@@ -95,7 +111,17 @@ export default async function HasilPage({ params }: PageProps<"/hasil/[id]">) {
             {mainIds.map((cid) => <CategoryCard key={cid} id={cid} intensity={intensityOf(cid)} answers={row.answers} />)}
           </div>
         )}
+        {tieNote && (
+          <p className="mt-3 flex gap-2 rounded-xl border bg-card p-3 text-sm">
+            <Info className="mt-0.5 size-4 shrink-0 text-primary" aria-hidden="true" />
+            <span>{tieNote}</span>
+          </p>
+        )}
       </section>
+
+      {interest.groups.length > 0 && row.other_interest && (
+        <OtherInterestCard text={row.other_interest} match={interest} mainIds={mainIds} otherIds={otherIds} intensityOf={intensityOf} />
+      )}
 
       {otherIds.length > 0 && (
         <details className="group mt-8 rounded-2xl border bg-card">
@@ -198,6 +224,72 @@ function CategoryCard({ id, intensity, answers }: { id: CategoryId; intensity: n
         </p>
       </div>
     </article>
+  );
+}
+
+function tieBreakNote(main: string, others: string[], reason: AutoTieBreak): string {
+  const list = others.length === 1 ? others[0] : `${others.slice(0, -1).join(", ")} dan ${others[others.length - 1]}`;
+  const why =
+    reason === "minat_lainnya"
+      ? "kamu menyebutnya di isian minat lainnya"
+      : reason === "sangat_tertarik"
+        ? "kamu lebih banyak memilih “Sangat tertarik” di bidang ini"
+        : "lebih banyak kegiatan di bidang ini yang kamu pilih “Tertarik” atau “Sangat tertarik”";
+  return `Skor ${main} sama dengan ${list}. ${main} ditampilkan lebih dulu karena ${why}.`;
+}
+
+function OtherInterestCard({
+  text,
+  match,
+  mainIds,
+  otherIds,
+  intensityOf,
+}: {
+  text: string;
+  match: OtherInterestMatch;
+  mainIds: CategoryId[];
+  otherIds: CategoryId[];
+  intensityOf: (cid: CategoryId) => number;
+}) {
+  const status = (cid: CategoryId) =>
+    mainIds.includes(cid)
+      ? "Sejalan dengan bidang utamamu di atas."
+      : otherIds.includes(cid)
+        ? "Ada di bagian “Kelihatan menarik untukmu juga”."
+        : `Skormu di bidang ini ${formatScore(intensityOf(cid))}/100. Lihat penjelasannya di “Kenali semua bidang”.`;
+  const outside = match.groups.filter((g) => g.categories.length !== 1 && g.note);
+  return (
+    <section aria-labelledby="minat-lain-judul" className="mt-6 rounded-2xl border bg-card p-5 shadow-xs">
+      <h2 id="minat-lain-judul" className="flex items-center gap-2 text-lg font-semibold">
+        <MessageSquareText className="size-5 text-primary" aria-hidden="true" /> Tentang minat lainnyamu
+      </h2>
+      <p className="mt-1 break-words text-sm text-muted-foreground">Kamu menulis: “{text}”</p>
+      {match.categories.length > 0 && (
+        <ul className="mt-3 grid gap-2">
+          {match.categories.filter((cid) => match.groups.some((g) => g.categories.length === 1 && g.categories[0] === cid)).map((cid) => (
+            <li key={cid} className="flex gap-3 rounded-xl bg-muted/60 p-3 text-sm">
+              <span className="grid size-8 shrink-0 place-items-center rounded-lg text-white" style={{ background: CATEGORY_BY_ID[cid].color }}>
+                <CategoryIcon id={cid} className="size-4" />
+              </span>
+              <span>
+                <span className="block font-semibold">{CATEGORY_BY_ID[cid].label}</span>
+                <span className="block">{status(cid)}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      )}
+      {outside.length > 0 && (
+        <ul className="mt-3 grid gap-2 text-sm">
+          {outside.map((g) => (
+            <li key={g.id} className="rounded-xl border border-dashed p-3">
+              <span className="font-semibold">{g.label}: </span>
+              {g.note}
+            </li>
+          ))}
+        </ul>
+      )}
+    </section>
   );
 }
 

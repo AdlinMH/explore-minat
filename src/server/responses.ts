@@ -1,6 +1,7 @@
 import "server-only";
 import { getSql } from "@/server/db";
 import { QUESTIONNAIRE_VERSION, type ExplorationStatusId } from "@/config/questionnaire";
+import { mentionedCategories } from "@/lib/other-interest";
 import { computeScores, scoresToRecord, validateAnswers, type ResultPattern } from "@/lib/scoring";
 import { sha256Hex } from "@/lib/security/crypto";
 import type { Submission } from "@/lib/validation";
@@ -38,7 +39,7 @@ export async function saveResponse(input: Submission, clientKey: string): Promis
   ]);
   if (!allowed) return { ok: false, reason: "limited" };
 
-  const result = computeScores(answers, input.tieBreak ?? null);
+  const result = computeScores(answers, input.tieBreak ?? null, mentionedCategories(input.otherInterest));
   const rows = await sql<{ id: string }[]>`
     insert into public.responses (
       submission_key, owner_token_hash, name, class_id, questionnaire_version, answers, scores,

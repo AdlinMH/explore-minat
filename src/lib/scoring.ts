@@ -21,7 +21,14 @@ export interface CategoryScore {
   id: CategoryId;
   raw: number; // 3–15
   intensity: number; // 0–100, tidak dibulatkan
+  /** Jumlah jawaban "Sangat tertarik" (5) di bidang ini; 0 jika tidak diketahui. */
+  strong?: number;
+  /** Jumlah jawaban 4 atau 5 di bidang ini; 0 jika tidak diketahui. */
+  liked?: number;
 }
+
+/** Alasan bidang utama terpilih otomatis saat skornya sama dengan bidang lain. */
+export type AutoTieBreak = "minat_lainnya" | "sangat_tertarik" | "tertarik";
 
 export interface ScoreResult {
   categories: CategoryScore[];
@@ -32,8 +39,15 @@ export interface ScoreResult {
   topGroup: CategoryId[];
   /** Kategori dengan skor tertinggi (bisa lebih dari satu jika seri dan belum dipilih siswa). */
   highest: CategoryId[];
-  /** Skor tertinggi yang seri sebelum pilihan siswa; dipakai untuk pertanyaan penentu. */
+  /** Bidang dengan skor tertinggi yang sama, sebelum pemecah seri apa pun. */
+  tiedByScore: CategoryId[];
+  /**
+   * Bidang yang masih seri setelah pemecah seri otomatis; jika lebih dari satu,
+   * siswa ditanya lewat pertanyaan penentu.
+   */
   tiedHighest: CategoryId[];
+  /** Diisi jika seri skor dipecah otomatis. */
+  autoTieBreak: AutoTieBreak | null;
   /** Rata-rata skor mentah (3–15) semua kategori milik siswa ini. */
   average: number;
   /** Selisih skor mentah tertinggi dan terendah; kecil berarti profil merata. */
@@ -84,18 +98,30 @@ export function formatScore(intensity: number): string {
 }
 
 /**
- * Menghitung skor dari 24 jawaban. `tieBreak` (opsional) adalah pilihan siswa
- * di pertanyaan penentu; hanya dipakai jika kategori itu memang termasuk yang
- * seri di skor tertinggi, selain itu diabaikan.
+ * Menghitung skor dari 24 jawaban.
+ *
+ * Jika beberapa bidang seri di skor tertinggi, pemecah seri otomatis dipakai
+ * berurutan: (1) bidang yang disebut siswa di "minat lainnya" (`mentioned`),
+ * (2) jumlah jawaban "Sangat tertarik", (3) jumlah jawaban 4–5. Jika masih seri,
+ * `tieBreak` (pilihan siswa di pertanyaan penentu) dipakai; nilai itu diabaikan
+ * jika bidangnya tidak termasuk yang masih seri.
  */
-export function computeScores(answers: Answers, tieBreak?: CategoryId | null): ScoreResult {
+export function computeScores(
+  answers: Answers,
+  tieBreak?: CategoryId | null,
+  mentioned: readonly CategoryId[] = [],
+): ScoreResult {
   const validated = validateAnswers(answers);
   const categories: CategoryScore[] = CATEGORIES.map((c) => {
-    const raw = c.questionNumbers.reduce(
-      (sum, n) => sum + validated[`q${String(n).padStart(2, "0")}`],
-      0,
-    );
-    return { id: c.id, raw, intensity: intensityFromRaw(raw) };
+    const values = c.questionNumbers.map((n) => validated[`q${String(n).padStart(2, "0")}`]);
+    const raw = values.reduce((sum, v) => sum + v, 0);
+    return {
+      id: c.id,
+      raw,
+      intensity: intensityFromRaw(raw),
+      strong: values.filter((v) => v === SCALE_MAX).length,
+      liked: values.filter((v) => v >= 4).length,
+    };
   });
 
   const values = Object.values(validated);
@@ -110,20 +136,44 @@ export function computeScores(answers: Answers, tieBreak?: CategoryId | null): S
   const spread = Math.max(...raws) - Math.min(...raws);
 
   if (pattern !== "normal") {
-    return { categories, topGroup: [], highest: [], tiedHighest: [], average, spread, pattern };
+    return { categories, topGroup: [], highest: [], tiedByScore: [], tiedHighest: [], autoTieBreak: null, average, spread, pattern };
   }
+
+  // Urutan: skor, lalu pemecah seri otomatis, lalu urutan konfigurasi (hanya tampilan).
+  const mentionedSet = new Set(mentioned);
+  const keys: { name: AutoTieBreak; of: (c: CategoryScore) => number }[] = [
+    { name: "minat_lainnya", of: (c) => (mentionedSet.has(c.id) ? 1 : 0) },
+    { name: "sangat_tertarik", of: (c) => c.strong ?? 0 },
+    { name: "tertarik", of: (c) => c.liked ?? 0 },
+  ];
+  const order = new Map(CATEGORY_IDS.map((id, i) => [id, i]));
+  const ranked = [...categories].sort((a, b) => {
+    if (b.raw !== a.raw) return b.raw - a.raw;
+    for (const k of keys) if (k.of(b) !== k.of(a)) return k.of(b) - k.of(a);
+    return order.get(a.id)! - order.get(b.id)!;
+  });
+
+  const tiedByScore = highestWithTies(categories);
+  let tied = ranked.filter((c) => tiedByScore.includes(c.id));
+  let autoTieBreak: AutoTieBreak | null = null;
+  for (const k of keys) {
+    if (tied.length < 2) break;
+    const best = Math.max(...tied.map(k.of));
+    const next = tied.filter((c) => k.of(c) === best);
+    if (next.length < tied.length) autoTieBreak = k.name;
+    tied = next;
+  }
+  const tiedHighest = tied.map((c) => c.id);
+  let highest = tiedHighest;
+  if (tieBreak && tiedHighest.length > 1 && tiedHighest.includes(tieBreak)) highest = [tieBreak];
 
   // Skor relatif: hanya bidang di atas rata-rata siswa sendiri yang dianggap menonjol.
   const aboveAverage = new Set(categories.filter((c) => c.raw > average).map((c) => c.id));
-  let topGroup = topGroupWithTies(categories, 3).filter((id) => aboveAverage.has(id));
-  const tiedHighest = highestWithTies(categories);
-  let highest = tiedHighest;
-  if (tieBreak && tiedHighest.length > 1 && tiedHighest.includes(tieBreak)) {
-    highest = [tieBreak];
-    topGroup = [tieBreak, ...topGroup.filter((id) => id !== tieBreak)];
-  }
+  const inTop = new Set(topGroupWithTies(categories, 3).filter((id) => aboveAverage.has(id)));
+  const rankedTop = ranked.filter((c) => inTop.has(c.id)).map((c) => c.id);
+  const topGroup = [...highest.filter((id) => inTop.has(id)), ...rankedTop.filter((id) => !highest.includes(id))];
 
-  return { categories, topGroup, highest, tiedHighest, average, spread, pattern };
+  return { categories, topGroup, highest, tiedByScore, tiedHighest, autoTieBreak, average, spread, pattern };
 }
 
 /**

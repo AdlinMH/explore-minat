@@ -14,7 +14,7 @@ export function adminSql() {
 
 export async function resetDb() {
   const sql = adminSql();
-  await sql`truncate public.result_explanations, public.responses, public.admin_sessions, public.rate_limits cascade`;
+  await sql`truncate public.responses, public.admin_sessions, public.rate_limits cascade`;
   await sql`delete from public.classes where lower(label) not in ('xii rpl 1', 'xii rpl 2')`;
   await sql`update public.classes set is_active = true`;
   const classes = await sql<{ id: string; label: string }[]>`select id, label from public.classes order by sort_order`;

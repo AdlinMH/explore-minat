@@ -113,6 +113,64 @@ describe("peringkat dan seri", () => {
   });
 });
 
+describe("pemecah seri otomatis", () => {
+  // desain: 5,5,2 (=12, dua "Sangat tertarik"); konten: 4,4,4 (=12, nol "Sangat tertarik")
+  const seri = () => ({ ...answersByCategory({}, 2), q01: 5, q09: 5, q17: 2, q07: 4, q15: 4, q23: 4 });
+
+  it("seri skor dipecah dengan jumlah jawaban Sangat tertarik", () => {
+    const r = computeScores(seri());
+    expect(r.tiedByScore).toEqual(["desain", "konten"]);
+    expect(r.highest).toEqual(["desain"]);
+    expect(r.tiedHighest).toEqual(["desain"]);
+    expect(r.autoTieBreak).toBe("sangat_tertarik");
+    expect(r.topGroup).toEqual(["desain", "konten"]);
+  });
+  it("bidang yang disebut di minat lainnya didahulukan", () => {
+    const r = computeScores(seri(), null, ["konten"]);
+    expect(r.highest).toEqual(["konten"]);
+    expect(r.autoTieBreak).toBe("minat_lainnya");
+    expect(r.topGroup).toEqual(["konten", "desain"]);
+  });
+  it("jumlah jawaban 4–5 dipakai jika Sangat tertarik sama", () => {
+    // desain: 5,4,3 (=12, liked 2); konten: 5,5,2 → beda strong; pakai website: 5,3,4 (=12, strong 1, liked 2)
+    const a = { ...answersByCategory({}, 2), q01: 5, q09: 4, q17: 3, q02: 5, q10: 5, q18: 2 };
+    // desain 12 (strong 1, liked 2), website 12 (strong 2) → website menang lewat sangat_tertarik
+    expect(computeScores(a).highest).toEqual(["website"]);
+    const b = { ...answersByCategory({}, 2), q01: 5, q09: 4, q17: 3, q02: 5, q10: 2, q18: 5 };
+    // desain 12 (strong 1, liked 2), website 12 (strong 2, liked 2) → website
+    expect(computeScores(b).highest).toEqual(["website"]);
+    const c = { ...answersByCategory({}, 2), q01: 5, q09: 4, q17: 3, q02: 5, q10: 3, q18: 4 };
+    // keduanya strong 1, liked 2 → masih seri, siswa ditanya
+    const rc = computeScores(c);
+    expect(rc.tiedHighest).toEqual(["desain", "website"]);
+    expect(rc.highest).toEqual(["desain", "website"]);
+    const d = { ...answersByCategory({}, 1), q01: 5, q09: 4, q17: 3, q02: 5, q10: 5, q18: 2, q03: 4, q11: 4, q19: 4 };
+    // desain 12 (s1,l2), website 12 (s2), mobile 12 (s0,l3)
+    expect(computeScores(d).highest).toEqual(["website"]);
+    const e = { ...answersByCategory({}, 1), q01: 5, q09: 4, q17: 3, q03: 4, q11: 4, q19: 4 };
+    // desain 12 (s1,l2) vs mobile 12 (s0,l3): sangat_tertarik menang lebih dulu
+    expect(computeScores(e).highest).toEqual(["desain"]);
+    const f = { ...answersByCategory({}, 1), q01: 4, q09: 4, q17: 4, q03: 4, q11: 4, q19: 4, q05: 4, q13: 4, q21: 3 };
+    // desain 12 (l3), mobile 12 (l3), ai_data 11 → masih seri
+    expect(computeScores(f).tiedHighest).toEqual(["desain", "mobile"]);
+  });
+  it("pemecah seri liked bekerja jika strong sama", () => {
+    const a = { ...answersByCategory({}, 1), q01: 5, q09: 4, q17: 2, q02: 5, q10: 3, q18: 3 };
+    // desain 11 (s1,l2), website 11 (s1,l1)
+    const r = computeScores(a);
+    expect(r.highest).toEqual(["desain"]);
+    expect(r.autoTieBreak).toBe("tertarik");
+  });
+  it("pilihan siswa dipakai hanya jika masih seri setelah pemecah otomatis", () => {
+    expect(computeScores(seri(), "konten").highest).toEqual(["desain"]);
+    const sama = answersByCategory({ desain: 5, konten: 5 }, 2);
+    expect(computeScores(sama, "konten").highest).toEqual(["konten"]);
+  });
+  it("skor tidak berubah oleh pemecah seri", () => {
+    expect(computeScores(seri(), null, ["konten"]).categories).toEqual(computeScores(seri()).categories);
+  });
+});
+
 describe("validasi jawaban", () => {
   it("menolak jawaban tidak lengkap", () => {
     const a = uniformAnswers(3);
